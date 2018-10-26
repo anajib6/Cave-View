@@ -24,6 +24,7 @@ class Stitcher:
 		# if the match is None, then there aren't eough matched
 		# keypoints to create a panorama
 		if M is None:
+			print 'Not Enough Matches Found'
 			return None
 
 		# otherwise, apply a perspective warp to stitch the images
@@ -48,17 +49,15 @@ class Stitcher:
 		result[0:sourceImage.shape[0], 0:sourceImage.shape[1]] = sourceImage
 
 		if showMatches:
-			vis = self.drawMatches(warpedImage, sourceImage, kpsA, kpsB, matches,
+			vis = self.drawMatches(sourceImage, warpedImage, kpsA, kpsB, matches,
 				status)
 
 			# return a tuple of the stitched image and the
 			# visualization
 			return (result, vis)
 
-
-
 		# return the stitched image
-		return result
+		return (result, None)
 
 	def detectAndDescribe(self, image):
 			# convert the image to grayscale
@@ -142,53 +141,32 @@ class Stitcher:
 		return vis
 
 import argparse
-
+from imutils import paths
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument('-p', '--prefix', required=True)
-ap.add_argument('-f', '--filetype', required=True)
-# ap.add_argument("-f", "--first", required=True,
-# 	help="path to the first image")
-# ap.add_argument("-s", "--second", required=True,
-# 	help="path to the second image")
-# ap.add_argument("-t", "--third", required=True,
-# 	help="path to the third image")
+ap.add_argument('-i', '--image', required=True)
+ap.add_argument('-m', '--match', action='store_true', default=False)
 args = vars(ap.parse_args())
-# load the two images and resize them to have a width of 400 pixels
-# (for faster processing)
-prefix = args['prefix']
-filetype = args['filetype']
-warpedImage = cv2.imread(prefix + '1.' + filetype)
-sourceImage = cv2.imread(prefix + '2.' + filetype)
-imageC = cv2.imread(prefix + '3.' + filetype)
-warpedImage = imutils.resize(warpedImage, width=400)
-sourceImage = imutils.resize(sourceImage, width=400)
-imageC = imutils.resize(imageC, width=400)
-
-# stitch the images together to create a panorama
+image_name = args['image']
+match = args['match']
 stitcher = Stitcher()
-matched_result = stitcher.stitch([warpedImage, sourceImage], showMatches=True)
+sourceImage = None
+for i, imagePath in enumerate(paths.list_images('images/{}'.format(image_name))):
+	if i == 0:
+		sourceImage = cv2.imread(imagePath)
+		sourceImage = imutils.resize(sourceImage, width=400)
+		continue
 
-if matched_result is not None:
+	# load the two images and resize them to have a width of 400 pixels
+	# (for faster processing)
+	warpImage = cv2.imread(imagePath)
+	warpImage = imutils.resize(warpImage, width=400)
+
+	matched_result = stitcher.stitch([sourceImage, warpImage], showMatches=match)
 	(result, vis) = matched_result
-	# show the images
-	cv2.imshow("Image A", warpedImage)
-	cv2.imshow("Image B", sourceImage)
-	cv2.imshow("Keypoint Matches", vis)
-	cv2.imshow("AB", result)
+	cv2.imshow('stitched', result)
+	if match:
+		cv2.imshow("Keypoint Matches", vis)
 	cv2.waitKey(0)
 	cv2.destroyAllWindows()
-else:
-	print 'No Matches Found'
-
-matched_result = stitcher.stitch([result, imageC], showMatches=True)
-if matched_result is not None:
-	(result2, vis) = matched_result
-	# show the images
-	cv2.imshow("AB", result)
-	cv2.imshow("Image C", imageC)
-	# cv2.imshow("Keypoint Matches", vis)
-	cv2.imshow("ABC", result2)
-	cv2.waitKey(0)
-else:
-	print 'No Matches Found'
+	sourceImage = result
