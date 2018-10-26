@@ -21,7 +21,7 @@ class Stitcher:
 		M = self.matchKeypoints(kpsA, kpsB,
 			featuresA, featuresB, ratio, reprojThresh)
 
-		# if the match is None, then there aren't enough matched
+		# if the match is None, then there aren't eough matched
 		# keypoints to create a panorama
 		if M is None:
 			return None
@@ -31,7 +31,10 @@ class Stitcher:
 		(matches, H, status) = M
 		result = cv2.warpPerspective(imageA, H,
 			(imageA.shape[1] + imageB.shape[1], imageA.shape[0]))
-		result[0:imageB.shape[0], 0:imageB.shape[1]] = imageB
+
+		# we merge imageB into final image
+		cond = np.where(imageB > [0, 0, 0]) # note: if imageA is a merged image, it will have black padded to sides
+		result[cond] = imageB[cond]
 
 		# check to see if the keypoint matches should be visualized
 		if showMatches:
@@ -110,8 +113,9 @@ class Stitcher:
 		vis = np.zeros((max(hA, hB), wA + wB, 3), dtype="uint8")
 		vis[0:hA, 0:wA] = imageA
 		vis[0:hB, wA:] = imageB
-
+		colors = [(0, 255,0), (0, 0, 255), (255, 0, 0)]
 		# loop over the matches
+		index = 0
 		for ((trainIdx, queryIdx), s) in zip(matches, status):
 			# only process the match if the keypoint was successfully
 			# matched
@@ -119,7 +123,8 @@ class Stitcher:
 				# draw the match
 				ptA = (int(kpsA[queryIdx][0]), int(kpsA[queryIdx][1]))
 				ptB = (int(kpsB[trainIdx][0]) + wA, int(kpsB[trainIdx][1]))
-				cv2.line(vis, ptA, ptB, (0, 255, 0), 1)
+				cv2.line(vis, ptA, ptB, colors[index % 3], 1)
+				index += 1
 
 		# return the visualization
 		return vis
@@ -128,25 +133,50 @@ import argparse
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-f", "--first", required=True,
-	help="path to the first image")
-ap.add_argument("-s", "--second", required=True,
-	help="path to the second image")
+ap.add_argument('-p', '--prefix', required=True)
+ap.add_argument('-f', '--filetype', required=True)
+# ap.add_argument("-f", "--first", required=True,
+# 	help="path to the first image")
+# ap.add_argument("-s", "--second", required=True,
+# 	help="path to the second image")
+# ap.add_argument("-t", "--third", required=True,
+# 	help="path to the third image")
 args = vars(ap.parse_args())
 # load the two images and resize them to have a width of 400 pixels
 # (for faster processing)
-imageA = cv2.imread(args["first"])
-imageB = cv2.imread(args["second"])
+prefix = args['prefix']
+filetype = args['filetype']
+imageA = cv2.imread(prefix + '1.' + filetype)
+imageB = cv2.imread(prefix + '2.' + filetype)
+imageC = cv2.imread(prefix + '3.' + filetype)
 imageA = imutils.resize(imageA, width=400)
 imageB = imutils.resize(imageB, width=400)
+imageC = imutils.resize(imageC, width=400)
 
 # stitch the images together to create a panorama
 stitcher = Stitcher()
-(result, vis) = stitcher.stitch([imageA, imageB], showMatches=True)
+matched_result = stitcher.stitch([imageA, imageB], showMatches=True)
 
-# show the images
-cv2.imshow("Image A", imageA)
-cv2.imshow("Image B", imageB)
-cv2.imshow("Keypoint Matches", vis)
-cv2.imshow("Result", result)
-cv2.waitKey(0)
+if matched_result is not None:
+	(result, vis) = matched_result
+	# show the images
+	cv2.imshow("Image A", imageA)
+	cv2.imshow("Image B", imageB)
+	cv2.imshow("Keypoint Matches", vis)
+	cv2.imshow("AB", result)
+	cv2.waitKey(0)
+	cv2.destroyAllWindows()
+else:
+	print 'No Matches Found'
+
+matched_result = stitcher.stitch([result, imageC], showMatches=True)
+if matched_result is not None:
+	(result2, vis) = matched_result
+	# show the images
+	cv2.imshow("AB", result)
+	cv2.imshow("Image C", imageC)
+	# cv2.imshow("Keypoint Matches", vis)
+	cv2.imshow("ABC", result2)
+	cv2.waitKey(0)
+else:
+	print 'No Matches Found'
