@@ -13,9 +13,9 @@ class Stitcher:
 		showMatches=False):
 		# unpack the images, then detect keypoints and extract
 		# local invariant descriptors from them
-		(imageB, imageA) = images
-		(kpsA, featuresA) = self.detectAndDescribe(imageA)
-		(kpsB, featuresB) = self.detectAndDescribe(imageB)
+		(sourceImage, warpedImage) = images
+		(kpsA, featuresA) = self.detectAndDescribe(warpedImage)
+		(kpsB, featuresB) = self.detectAndDescribe(sourceImage)
 
 		# match features between the two images
 		M = self.matchKeypoints(kpsA, kpsB,
@@ -28,22 +28,34 @@ class Stitcher:
 
 		# otherwise, apply a perspective warp to stitch the images
 		# together
+
 		(matches, H, status) = M
-		result = cv2.warpPerspective(imageA, H,
-			(imageA.shape[1] + imageB.shape[1], imageA.shape[0]))
+		warpedHeight, warpedWidth, _ = warpedImage.shape
+		warpTopRight = np.matmul(H, np.array([warpedWidth, 0, 1]))
+		warpTopRight = warpTopRight / warpTopRight[2] # normalization
+		warpBotRight = np.matmul(H, np.array([warpedWidth, warpedHeight, 1]))
+		warpBotRight = warpBotRight / warpBotRight[2] # normalization
+		warpShorterBorderWidth = min(int(warpTopRight[0]), int(warpBotRight[0]))
+		finalImageWidth = max(sourceImage.shape[1], warpShorterBorderWidth)
 
-		# we merge imageB into final image
-		cond = np.where(imageB > [0, 0, 0]) # note: if imageA is a merged image, it will have black padded to sides
-		result[cond] = imageB[cond]
+		result = cv2.warpPerspective(
+			warpedImage, H,
+			(finalImageWidth, sourceImage.shape[0])
+		)
 
-		# check to see if the keypoint matches should be visualized
+		# we merge sourceImage into final image
+		# BLENDING CAN BE DONE HERE
+		result[0:sourceImage.shape[0], 0:sourceImage.shape[1]] = sourceImage
+
 		if showMatches:
-			vis = self.drawMatches(imageA, imageB, kpsA, kpsB, matches,
+			vis = self.drawMatches(warpedImage, sourceImage, kpsA, kpsB, matches,
 				status)
 
 			# return a tuple of the stitched image and the
 			# visualization
 			return (result, vis)
+
+
 
 		# return the stitched image
 		return result
@@ -146,22 +158,22 @@ args = vars(ap.parse_args())
 # (for faster processing)
 prefix = args['prefix']
 filetype = args['filetype']
-imageA = cv2.imread(prefix + '1.' + filetype)
-imageB = cv2.imread(prefix + '2.' + filetype)
+warpedImage = cv2.imread(prefix + '1.' + filetype)
+sourceImage = cv2.imread(prefix + '2.' + filetype)
 imageC = cv2.imread(prefix + '3.' + filetype)
-imageA = imutils.resize(imageA, width=400)
-imageB = imutils.resize(imageB, width=400)
+warpedImage = imutils.resize(warpedImage, width=400)
+sourceImage = imutils.resize(sourceImage, width=400)
 imageC = imutils.resize(imageC, width=400)
 
 # stitch the images together to create a panorama
 stitcher = Stitcher()
-matched_result = stitcher.stitch([imageA, imageB], showMatches=True)
+matched_result = stitcher.stitch([warpedImage, sourceImage], showMatches=True)
 
 if matched_result is not None:
 	(result, vis) = matched_result
 	# show the images
-	cv2.imshow("Image A", imageA)
-	cv2.imshow("Image B", imageB)
+	cv2.imshow("Image A", warpedImage)
+	cv2.imshow("Image B", sourceImage)
 	cv2.imshow("Keypoint Matches", vis)
 	cv2.imshow("AB", result)
 	cv2.waitKey(0)

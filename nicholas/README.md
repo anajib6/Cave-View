@@ -1,6 +1,6 @@
 # Current Usage
 
-```py
+```
 python stitcher.py -p images\yosemite\yosemite -f jpg
 ```
 **DO NOT CLOSE WINDOWS**
