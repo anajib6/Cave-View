@@ -39,17 +39,34 @@ class Stitcher:
 		warpShorterBorderWidth = min(int(warpTopRight[0]), int(warpBotRight[0]))
 		finalImageWidth = max(sourceImage.shape[1], warpShorterBorderWidth)
 
+		warpTopLeft = np.matmul(H, np.array([warpedWidth, 0, 1]))
+		warpTopLeft = warpTopLeft / warpTopLeft[2] # normalization
+		warpBotLeft = np.matmul(H, np.array([warpedWidth, warpedHeight, 1]))
+		warpBotLeft = warpBotLeft / warpBotLeft[2] # normalization
+		finalImageHeight = max(sourceImage.shape[0], int(warpBotRight[0]), int(warpBotLeft[0]))
 		result = cv2.warpPerspective(
 			warpedImage, H,
-			(finalImageWidth, sourceImage.shape[0])
+			(finalImageWidth, finalImageHeight)
 		)
 
 		# we merge sourceImage into final image
 		# BLENDING CAN BE DONE HERE
-		result[0:sourceImage.shape[0], 0:sourceImage.shape[1]] = sourceImage
+		# result[0:sourceImage.shape[0], 0:sourceImage.shape[1]] = sourceImage
+		cond = np.where(sourceImage > [0, 0, 0]) # note: if imageA is a merged image, it will have black padded to sides
+		result[cond] = sourceImage[cond]
+		row, col, _ = result.shape
+		#  naiive clipping
+		for y in range(row-1, -1, -1):
+			trim = False
+			for x in range(col):
+				if not np.array_equal(result[y, x], [0, 0, 0]):
+					trim = True
+			if trim:
+				result = result[:y]
+				break
 
 		if showMatches:
-			vis = self.drawMatches(sourceImage, warpedImage, kpsA, kpsB, matches,
+			vis = self.drawMatches(warpedImage, sourceImage, kpsA, kpsB, matches,
 				status)
 
 			# return a tuple of the stitched image and the
@@ -140,6 +157,38 @@ class Stitcher:
 		# return the visualization
 		return vis
 
+	def cylindricalWarp(self, image):
+		import math
+		height, width, rgb = image.shape
+		yc = int(height/2)
+		xc = int(width/2)
+		warpedImage = np.zeros((2*height, 2*width, rgb), dtype=np.uint8)
+		focalLength = width * (5.4 / 3.2) # EXIF DATA AND GOOGLE AND MAGIC NUMBER
+		maxY = -float('inf')
+		maxX = -float('inf')
+		minY = float('inf')
+		minX = float('inf')
+		for y in range(height):
+			for x in range(width):
+				xprime = focalLength * math.atan((x-xc)/focalLength)
+				yprime = focalLength * (y-yc)/math.sqrt((x-xc)**2 + focalLength**2)
+				xprime += width
+				yprime += height
+				maxY = max(yprime, maxY)
+				maxX = max(xprime, maxX)
+				minY = min(yprime, minY)
+				minX = min(xprime, minX)
+				if xprime < 0 or xprime >= 2*width or yprime < 0 or yprime >= 2*height:
+					continue
+				warpedImage[int(yprime), int(xprime)] = image[y, x]
+		maxY = int(maxY)
+		maxX = int(maxX)
+		minY = int(minY)
+		minX = int(minX)
+		warpedImage = warpedImage[minY:maxY, minX:maxX]
+		return warpedImage
+
+
 import argparse
 from imutils import paths
 # construct the argument parse and parse the arguments
@@ -154,13 +203,15 @@ sourceImage = None
 for i, imagePath in enumerate(paths.list_images('images/{}'.format(image_name))):
 	if i == 0:
 		sourceImage = cv2.imread(imagePath)
-		sourceImage = imutils.resize(sourceImage, width=400)
+		sourceImage = imutils.resize(sourceImage, width=150)
+		sourceImage = stitcher.cylindricalWarp(sourceImage)
 		continue
 
 	# load the two images and resize them to have a width of 400 pixels
 	# (for faster processing)
 	warpImage = cv2.imread(imagePath)
-	warpImage = imutils.resize(warpImage, width=400)
+	warpImage = imutils.resize(warpImage, width=150)
+	warpImage = stitcher.cylindricalWarp(warpImage)
 
 	matched_result = stitcher.stitch([sourceImage, warpImage], showMatches=match)
 	(result, vis) = matched_result
