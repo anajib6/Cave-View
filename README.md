@@ -1,4 +1,6 @@
-# Current Usage
+# Cave View
+
+## Current Usage
 
 ```
 python stitcher.py -i trees -m
