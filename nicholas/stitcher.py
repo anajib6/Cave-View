@@ -50,10 +50,62 @@ class Stitcher:
 		)
 
 		# we merge sourceImage into final image
-		# BLENDING CAN BE DONE HERE
+
 		# result[0:sourceImage.shape[0], 0:sourceImage.shape[1]] = sourceImage
 		cond = np.where(sourceImage > [0, 0, 0]) # note: if imageA is a merged image, it will have black padded to sides
-		result[cond] = sourceImage[cond]
+
+		res_only = np.where(result > [0,0,0])
+		null_res = np.where(result == [0,0,0])
+
+		res_top = np.zeros(result.shape,dtype=int)
+		t_source_top = np.zeros(result.shape, dtype=int) 
+		source_top = np.zeros(result.shape, dtype=int) 
+
+		t_source_top[cond] = sourceImage[cond]
+		null_src = np.where(t_source_top == [0,0,0])
+		res_top[null_src] = result[null_src]
+
+		# create array size of full
+		combined = res_top + source_top
+		null_area = np.where(combined > [0,0,0])
+		binary = np.zeros(result.shape, dtype=np.uint8)
+		binary[null_area] = 255
+
+		# null_area_2 = (null_area[0] + sourceImage.shape[0]/10, null_area[1] - )
+		# import matplotlib.pyplot as plt
+
+		# offset_y = sourceImage.shape[0]/25
+		# offset_x = sourceImage.shape[1]/25
+		offset_y = 5
+		offset_x = 5
+		min0 = max(np.min(null_area[0] + offset_y),0,np.min(res_only[0])+offset_y)
+		max0 = min(np.max(null_area[0] - offset_y), binary.shape[0], np.max(res_only[0])-offset_y)
+		min1 = max(np.min(null_area[1] + offset_x),0, np.min(res_only[1])+offset_x)
+		max1 = min(np.max(null_area[1] - offset_x), binary.shape[1], np.max(res_only[1])-offset_x)
+		binary[min0:max0, min1:max1] = 255
+
+		# binary = cv2.cvtColor(binary, cv2.COLOR_RGB2GRAY)
+		binary = cv2.blur(binary,(offset_y,offset_x))
+		binary = binary/255.0
+		source_top[null_res] = t_source_top[null_res]
+		# scale points by averages alpha transform
+		out = np.multiply(source_top + result, binary) + np.multiply(res_top+t_source_top,1-binary)
+		out = np.array(out , dtype=np.uint8)
+	# fig, ax = plt.subplots(3,3)
+		# ax[0,0].imshow(binary)
+		# ax[0,1].imshow(out)
+		# ax[0,2].imshow(res_top)
+		# ax[1,0].imshow(source_top)
+		# ax[1,1].imshow(t_source_top)
+		# ax[1,2].imshow(result)
+		# ax[2,0].imshow(warpedImage)
+		# ax[2,1].imshow(sourceImage)
+		# # ax[2,2].imshow(result)
+		# plt.show()
+		# plt.close()
+
+		result = out
+		# result[cond] = sourceImage[cond]
 		row, col, _ = result.shape
 		#  naiive clipping
 		for y in range(row-1, -1, -1):
@@ -200,7 +252,10 @@ image_name = args['image']
 match = args['match']
 stitcher = Stitcher()
 sourceImage = None
-for i, imagePath in enumerate(paths.list_images('images/{}'.format(image_name))):
+# for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(image_name))))):
+	# print imagePath
+for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(image_name))))):
+# for i, imagePath in enumerate(paths.list_images('images/{}'.format(image_name))):
 	if i == 0:
 		sourceImage = cv2.imread(imagePath)
 		sourceImage = imutils.resize(sourceImage, width=150)
