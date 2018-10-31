@@ -30,9 +30,6 @@ class Stitcher:
 		# together
 		(matches, H, status) = M
 		warpedHeight, warpedWidth, _ = warpedImage.shape
-		# print "warpedHeight",warpedHeight
-		# print "warpedWidth", warpedWidth
-		# print type(H)
 		warpTopRight = np.matmul(H, np.array([warpedWidth, 0, 1]))
 		warpTopRight = warpTopRight / warpTopRight[2] # normalization
 		warpBotRight = np.matmul(H, np.array([warpedWidth, warpedHeight, 1]))
@@ -214,7 +211,7 @@ class Stitcher:
 		yc = int(height/2)
 		xc = int(width/2)
 		warpedImage = np.zeros((2*height, 2*width, rgb), dtype=np.uint8)
-		focalLength = width * (5.4 / 3.2) # EXIF DATA AND GOOGLE AND MAGIC NUMBER
+		focalLength = width * (5.4 / (3.2+0.01*i)) # EXIF DATA AND GOOGLE AND MAGIC NUMBER
 		maxY = -float('inf')
 		maxX = -float('inf')
 		minY = float('inf')
