@@ -246,9 +246,11 @@ from imutils import paths
 ap = argparse.ArgumentParser()
 ap.add_argument('-i', '--image', required=True)
 ap.add_argument('-m', '--match', action='store_true', default=False)
+ap.add_argument('-s', '--split', action='store_true', default=False)
 args = vars(ap.parse_args())
 image_name = args['image']
 match = args['match']
+split = args['split']
 stitcher = Stitcher()
 sourceImage = None
 # for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(image_name))))):
@@ -266,13 +268,26 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 	warpImage = cv2.imread(imagePath)
 	warpImage = imutils.resize(warpImage, width=150)
 	warpImage = stitcher.cylindricalWarp(warpImage)
+	if split and i > 4:
+		leftSourceImage = sourceImage.copy()[:,:sourceImage.shape[1]/2]
+		rightSourceImage = sourceImage.copy()[:,sourceImage.shape[1]/2:]
+		matched_result = stitcher.stitch([rightSourceImage, warpImage], showMatches=match)
+	else:
+		matched_result = stitcher.stitch([sourceImage, warpImage], showMatches=match)
 
-	matched_result = stitcher.stitch([sourceImage, warpImage], showMatches=match)
-	# if no matches found, stop the loop
+# if no matches found, stop the loop
 	if matched_result is None:
 		cv2.destroyAllWindows()
 		break
 	(result, vis) = matched_result
+	if split and i > 4:
+		height = result.shape[0] if result.shape[0] > leftSourceImage.shape[0] else leftSourceImage.shape[0]
+		width = result.shape[1] + leftSourceImage.shape[1]
+		merge = np.zeros((height,width,3)).astype("uint8")
+		merge[:leftSourceImage.shape[0], :leftSourceImage.shape[1]] = leftSourceImage
+		merge[:result.shape[0], leftSourceImage.shape[1]:] = result
+		result = merge
+
 	cv2.imshow('stitched', result)
 	if match:
 		cv2.imshow("Keypoint Matches", vis)
