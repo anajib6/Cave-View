@@ -21,17 +21,18 @@ class Stitcher:
 		M = self.matchKeypoints(kpsA, kpsB,
 			featuresA, featuresB, ratio, reprojThresh)
 
-		# if the match is None, then there aren't eough matched
+		# if the match is None or Homograph Matrix is None, then there aren't eough matched
 		# keypoints to create a panorama
-		if M is None:
+		if M is None or M[1] is None:
 			print 'Not Enough Matches Found'
 			return None
-
 		# otherwise, apply a perspective warp to stitch the images
 		# together
-
 		(matches, H, status) = M
 		warpedHeight, warpedWidth, _ = warpedImage.shape
+		# print "warpedHeight",warpedHeight
+		# print "warpedWidth", warpedWidth
+		# print type(H)
 		warpTopRight = np.matmul(H, np.array([warpedWidth, 0, 1]))
 		warpTopRight = warpTopRight / warpTopRight[2] # normalization
 		warpBotRight = np.matmul(H, np.array([warpedWidth, warpedHeight, 1]))
@@ -176,13 +177,11 @@ class Stitcher:
 			ptsB = np.float32([kpsB[i] for (i, _) in matches])
 
 			# compute the homography between the two sets of points
-			(H, status) = cv2.findHomography(ptsA, ptsB, cv2.RANSAC,
+			(H, status) = cv2.findHomography(ptsA, ptsB, cv2.FM_RANSAC,
 				reprojThresh)
-
 			# return the matches along with the homograpy matrix
 			# and status of each matched point
 			return (matches, H, status)
-
 		# otherwise, no homograpy could be computed
 		return None
 
@@ -269,6 +268,10 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 	warpImage = stitcher.cylindricalWarp(warpImage)
 
 	matched_result = stitcher.stitch([sourceImage, warpImage], showMatches=match)
+	# if no matches found, stop the loop
+	if matched_result is None:
+		cv2.destroyAllWindows()
+		break
 	(result, vis) = matched_result
 	cv2.imshow('stitched', result)
 	if match:
