@@ -211,7 +211,7 @@ class Stitcher:
 		yc = int(height/2)
 		xc = int(width/2)
 		warpedImage = np.zeros((2*height, 2*width, rgb), dtype=np.uint8)
-		focalLength = width * (5.4 / (3.2+0.01*i)) # EXIF DATA AND GOOGLE AND MAGIC NUMBER
+		focalLength = width * (1 / (1+0.01*i)) # EXIF DATA AND GOOGLE AND MAGIC NUMBER
 		maxY = -float('inf')
 		maxX = -float('inf')
 		minY = float('inf')
@@ -250,18 +250,18 @@ match = args['match']
 split = args['split']
 stitcher = Stitcher()
 sourceImage = None
-
+image_width = 400
 for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(image_name))))):
 	if i == 0:
 		sourceImage = cv2.imread(imagePath)
-		sourceImage = imutils.resize(sourceImage, width=150)
+		sourceImage = imutils.resize(sourceImage, width=image_width)
 		sourceImage = stitcher.cylindricalWarp(sourceImage)
 		continue
 
 	# load the two images and resize them to have a width of 400 pixels
 	# (for faster processing)
 	warpImage = cv2.imread(imagePath)
-	warpImage = imutils.resize(warpImage, width=150)
+	warpImage = imutils.resize(warpImage, width=image_width)
 	warpImage = stitcher.cylindricalWarp(warpImage)
 	if split and i > 4:
 		print 'split', i
