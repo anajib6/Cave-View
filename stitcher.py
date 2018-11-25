@@ -56,8 +56,8 @@ class Stitcher:
 		null_res = np.where(result == [0,0,0])
 
 		res_top = np.zeros(result.shape,dtype=int)
-		t_source_top = np.zeros(result.shape, dtype=int) 
-		source_top = np.zeros(result.shape, dtype=int) 
+		t_source_top = np.zeros(result.shape, dtype=int)
+		source_top = np.zeros(result.shape, dtype=int)
 
 		t_source_top[cond] = sourceImage[cond]
 		null_src = np.where(t_source_top == [0,0,0])
@@ -187,9 +187,9 @@ class Stitcher:
 		(hA, wA) = imageA.shape[:2]
 		(hB, wB) = imageB.shape[:2]
 		vis = np.zeros((max(hA, hB), wA + wB, 3), dtype="uint8")
-		vis[0:hA, 0:wA] = imageA
-		vis[0:hB, wA:] = imageB
-		colors = [(0, 255,0), (0, 0, 255), (255, 0, 0)]
+		vis[0:hB, 0:wB] = imageB
+		vis[0:hA, wB:] = imageA
+		colors = [(0, 255, 0), (0, 0, 255), (255, 0, 0)]
 		# loop over the matches
 		index = 0
 		for ((trainIdx, queryIdx), s) in zip(matches, status):
@@ -197,8 +197,8 @@ class Stitcher:
 			# matched
 			if s == 1:
 				# draw the match
-				ptA = (int(kpsA[queryIdx][0]), int(kpsA[queryIdx][1]))
-				ptB = (int(kpsB[trainIdx][0]) + wA, int(kpsB[trainIdx][1]))
+				ptA = (int(kpsA[queryIdx][0]) + wB, int(kpsA[queryIdx][1]))
+				ptB = (int(kpsB[trainIdx][0]), int(kpsB[trainIdx][1]))
 				cv2.line(vis, ptA, ptB, colors[index % 3], 1)
 				index += 1
 
@@ -250,10 +250,8 @@ match = args['match']
 split = args['split']
 stitcher = Stitcher()
 sourceImage = None
-# for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(image_name))))):
-	# print imagePath
+
 for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(image_name))))):
-# for i, imagePath in enumerate(paths.list_images('images/{}'.format(image_name))):
 	if i == 0:
 		sourceImage = cv2.imread(imagePath)
 		sourceImage = imutils.resize(sourceImage, width=150)
@@ -266,6 +264,7 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 	warpImage = imutils.resize(warpImage, width=150)
 	warpImage = stitcher.cylindricalWarp(warpImage)
 	if split and i > 4:
+		print 'split', i
 		leftSourceImage = sourceImage.copy()[:,:sourceImage.shape[1]/2]
 		rightSourceImage = sourceImage.copy()[:,sourceImage.shape[1]/2:]
 		matched_result = stitcher.stitch([rightSourceImage, warpImage], showMatches=match)
