@@ -163,12 +163,29 @@ class Stitcher:
 
 	def detectAndDescribe(self, image):
 			# convert the image to grayscale
+
+			#-----Converting image to LAB Color model-----------------------------------
+			cv2.imshow('orig', image)
+			lab= cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+			# cv2.imshow("lab",lab)
+			l, a, b = cv2.split(lab)
+			clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+			cl = clahe.apply(l)
+			limg = cv2.merge((cl,a,b))
+			final = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+			# cv2.imshow('final', final)
+			image = final
+
 			gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+			# # cv2.waitKey(0)
+			# cv2.destroyAllWindows()
 
 			# check to see if we are using OpenCV 3.X
 			if self.isv3:
 				# detect and extract features from the image
 				descriptor = cv2.xfeatures2d.SIFT_create()
+				# descriptor = cv2.
 				(kps, features) = descriptor.detectAndCompute(image, None)
 
 			# otherwise, we are using OpenCV 2.4.X
@@ -270,6 +287,7 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 	warpImage = imutils.resize(warpImage, width=image_width)
 	warpImage = ImageTransform.cylindrical_warp(warpImage)
 	warpImage = ImageTransform.crop_image(warpImage)
+
 	if split and i > 4:
 		print 'split', i
 		leftSourceImage = sourceImage.copy()[:,:sourceImage.shape[1]/2]
@@ -280,6 +298,8 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 
 # if no matches found, stop the loop
 	if matched_result is None:
+		cv2.imshow(sourceImage)
+		cv2.imwrite('cave.png', sourceImage)
 		cv2.destroyAllWindows()
 		break
 	(result, vis) = matched_result
