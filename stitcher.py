@@ -74,6 +74,7 @@ class Stitcher:
 
 		# offset_y = sourceImage.shape[0]/25
 		# offset_x = sourceImage.shape[1]/25
+
 		offset_y = 5
 		offset_x = 5
 		min0 = max(np.min(null_area[0] + offset_y),0,np.min(res_only[0])+offset_y)
@@ -89,18 +90,6 @@ class Stitcher:
 		# scale points by averages alpha transform
 		out = np.multiply(source_top + result, binary) + np.multiply(res_top+t_source_top,1-binary)
 		out = np.array(out , dtype=np.uint8)
-	# fig, ax = plt.subplots(3,3)
-		# ax[0,0].imshow(binary)
-		# ax[0,1].imshow(out)
-		# ax[0,2].imshow(res_top)
-		# ax[1,0].imshow(source_top)
-		# ax[1,1].imshow(t_source_top)
-		# ax[1,2].imshow(result)
-		# ax[2,0].imshow(warpedImage)
-		# ax[2,1].imshow(sourceImage)
-		# # ax[2,2].imshow(result)
-		# plt.show()
-		# plt.close()
 
 		result = out
 		# result[cond] = sourceImage[cond]
@@ -128,12 +117,29 @@ class Stitcher:
 
 	def detectAndDescribe(self, image):
 			# convert the image to grayscale
+
+			#-----Converting image to LAB Color model----------------------------------- 
+			cv2.imshow('orig', image)
+			lab= cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+			# cv2.imshow("lab",lab)
+			l, a, b = cv2.split(lab)
+			clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+			cl = clahe.apply(l)
+			limg = cv2.merge((cl,a,b))
+			final = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+			# cv2.imshow('final', final)
+			image = final
+
 			gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+			# # cv2.waitKey(0)
+			# cv2.destroyAllWindows()
 
 			# check to see if we are using OpenCV 3.X
 			if self.isv3:
 				# detect and extract features from the image
 				descriptor = cv2.xfeatures2d.SIFT_create()
+				# descriptor = cv2.
 				(kps, features) = descriptor.detectAndCompute(image, None)
 
 			# otherwise, we are using OpenCV 2.4.X
@@ -211,7 +217,8 @@ class Stitcher:
 		yc = int(height/2)
 		xc = int(width/2)
 		warpedImage = np.zeros((2*height, 2*width, rgb), dtype=np.uint8)
-		focalLength = width * (1 / (1+0.01*i)) # EXIF DATA AND GOOGLE AND MAGIC NUMBER
+		focalLength = width * (4+ 0.1 * i/ (1)) 
+		# focalLength = width * (1 / (1+0.01*i)) # EXIF DATA AND GOOGLE AND MAGIC NUMBER
 		maxY = -float('inf')
 		maxX = -float('inf')
 		minY = float('inf')
@@ -262,6 +269,8 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 	# (for faster processing)
 	warpImage = cv2.imread(imagePath)
 	warpImage = imutils.resize(warpImage, width=image_width)
+
+
 	warpImage = stitcher.cylindricalWarp(warpImage)
 	if split and i > 4:
 		print 'split', i
@@ -273,6 +282,8 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 
 # if no matches found, stop the loop
 	if matched_result is None:
+		cv2.imshow(sourceImage)
+		cv2.imwrite('cave.png', sourceImage)
 		cv2.destroyAllWindows()
 		break
 	(result, vis) = matched_result
