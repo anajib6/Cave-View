@@ -3,91 +3,9 @@ import imutils
 import cv2
 import math
 import matplotlib.pyplot as plt
+from transform import ImageTransform
+from correction import ImageCorrection
 # Code adapted from htts://www.pyimagesearch.com/2016/01/11/opencv-panorama-stitching/
-
-class ImageTransform:
-	@staticmethod
-	def get_final_image_dimensions(H, sourceImage, warpedImage):
-		warpedHeight, warpedWidth, _ = warpedImage.shape
-		warpTopRight = np.matmul(H, np.array([warpedWidth, 0, 1]))
-		warpTopRight = warpTopRight / warpTopRight[2] # normalization
-		warpBotRight = np.matmul(H, np.array([warpedWidth, warpedHeight, 1]))
-		warpBotRight = warpBotRight / warpBotRight[2] # normalization
-		warpShorterBorderWidth = min(int(warpTopRight[0]), int(warpBotRight[0]))
-		finalImageWidth = max(sourceImage.shape[1], warpShorterBorderWidth)
-		warpTopLeft = np.matmul(H, np.array([warpedWidth, 0, 1]))
-		warpTopLeft = warpTopLeft / warpTopLeft[2] # normalization
-		warpBotLeft = np.matmul(H, np.array([warpedWidth, warpedHeight, 1]))
-		warpBotLeft = warpBotLeft / warpBotLeft[2] # normalization
-		finalImageHeight = max(sourceImage.shape[0], int(warpBotRight[0]), int(warpBotLeft[0]))
-
-		return finalImageWidth, finalImageHeight
-
-	@staticmethod
-	def crop_image(img, tol=50):
-		# img is image data
-		# tol  is tolerance
-		gimg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-		mask = gimg > tol
-		return img[np.ix_(mask.any(1),mask.any(0))]
-
-	@staticmethod
-	def cylindrical_warp(image):
-		height, width, rgb = image.shape
-		yc = int(height/2)
-		xc = int(width/2)
-		warpedImage = np.zeros((2*height, 2*width, rgb), dtype=np.uint8)
-		# focalLength = width * (5.4 / (3.2+0.01*i)) # EXIF DATA AND GOOGLE AND MAGIC NUMBER
-		focalLength = width * (4+ 0.1 * i/ (1)) # EXIF DATA AND GOOGLE AND MAGIC NUMBER
-		maxY = -float('inf')
-		maxX = -float('inf')
-		minY = float('inf')
-		minX = float('inf')
-		for y in range(height):
-			for x in range(width):
-				xprime = focalLength * math.atan((x-xc)/focalLength)
-				yprime = focalLength * (y-yc)/math.sqrt((x-xc)**2 + focalLength**2)
-				xprime += width
-				yprime += height
-				maxY = max(yprime, maxY)
-				maxX = max(xprime, maxX)
-				minY = min(yprime, minY)
-				minX = min(xprime, minX)
-				if xprime < 0 or xprime >= 2*width or yprime < 0 or yprime >= 2*height:
-					continue
-				warpedImage[int(yprime), int(xprime)] = image[y, x]
-		maxY = int(maxY)
-		maxX = int(maxX)
-		minY = int(minY)
-		minX = int(minX)
-		warpedImage = warpedImage[minY:maxY, minX:maxX]
-		return warpedImage
-
-class ImageCorrection:
-	@staticmethod
-	def get_average_intensity(image):
-		v_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)[::2]
-		values = v_image[np.where(v_image > 0)]
-		return np.average(values)
-
-	@staticmethod
-	def adjust_gamma(image, gamma=1.0):
-		# build a lookup table mapping the pixel values [0, 255] to
-		# their adjusted gamma values
-		invGamma = 1.0 / gamma
-		table = np.array([((i / 255.0) ** invGamma) * 255
-			for i in np.arange(0, 256)]).astype("uint8")
-		# apply gamma correction using the lookup table
-		return cv2.LUT(image, table)
-
-	@staticmethod
-	def adjust_v(image, v=1.0):
-		hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-		v_vals = np.clip(hsv[::2] * v, 0, 1)
-		hsv[::2] = v_vals
-		rgb = cv2.cvtColor(image, cv2.COLOR_HSV2RGB)
-		return rgb
-
 
 class Stitcher:
 	def __init__(self):
@@ -99,16 +17,16 @@ class Stitcher:
 		# unpack the images, then detect keypoints and extract
 		# local invariant descriptors from them
 		(sourceImage, warpedImage) = images
-		sourceIntensity = ImageCorrection.get_average_intensity(sourceImage)
-		warpIntensity = ImageCorrection.get_average_intensity(warpedImage)
-		gamma = sourceIntensity/warpIntensity # estimated brightness change
-		warpedImage = ImageCorrection.adjust_gamma(warpedImage, gamma)
-		print gamma, sourceIntensity, warpIntensity, ImageCorrection.get_average_intensity(warpedImage)
+		# sourceIntensity = ImageCorrection.get_average_intensity(sourceImage)
+		# warpIntensity = ImageCorrection.get_average_intensity(warpedImage)
+		# gamma = sourceIntensity/warpIntensity # estimated brightness change
+		# warpedImage = ImageCorrection.adjust_gamma(warpedImage, gamma)
+		# print gamma, sourceIntensity, warpIntensity, ImageCorrection.get_average_intensity(warpedImage)
 		(kpsA, featuresA) = self.detectAndDescribe(warpedImage)
 		(kpsB, featuresB) = self.detectAndDescribe(sourceImage)
-		cv2.imshow('source', sourceImage)
-		cv2.imshow('pre-warped', warpedImage)
-		cv2.waitKey(0)
+		# cv2.imshow('source', sourceImage)
+		# cv2.imshow('pre-warped', warpedImage)
+		# cv2.waitKey(0)
 		# match features between the two images
 		M = self.matchKeypoints(kpsA, kpsB,
 			featuresA, featuresB, ratio, reprojThresh)
@@ -141,11 +59,6 @@ class Stitcher:
 			res = resGrayImage[w, h]
 			src = sourceGrayImage[w, h]
 			if src > res:
-				# print src, res
-				# if res > 10:
-				# 	a = float(w) / result.shape[1]
-				# 	result[w, h] = (sourceImage[w, h] * a) + (result[w, h] * (1-a))
-				# else:
 				result[w, h] = sourceImage[w, h]
 
 		row, col, _ = result.shape
@@ -164,18 +77,7 @@ class Stitcher:
 	def detectAndDescribe(self, image):
 			# convert the image to grayscale
 
-			#-----Converting image to LAB Color model-----------------------------------
-			cv2.imshow('orig', image)
-			lab= cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-			# cv2.imshow("lab",lab)
-			l, a, b = cv2.split(lab)
-			clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
-			cl = clahe.apply(l)
-			limg = cv2.merge((cl,a,b))
-			final = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
-			# cv2.imshow('final', final)
-			image = final
-
+			image = ImageCorrection.clahe_illum(image)
 			gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
 			# # cv2.waitKey(0)
@@ -277,7 +179,7 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 	if i == 0:
 		sourceImage = cv2.imread(imagePath)
 		sourceImage = imutils.resize(sourceImage, width=image_width)
-		sourceImage = ImageTransform.cylindrical_warp(sourceImage)
+		sourceImage = ImageTransform.cylindrical_warp(sourceImage, i)
 		sourceImage = ImageTransform.crop_image(sourceImage)
 		continue
 
@@ -285,10 +187,10 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 	# (for faster processing)
 	warpImage = cv2.imread(imagePath)
 	warpImage = imutils.resize(warpImage, width=image_width)
-	warpImage = ImageTransform.cylindrical_warp(warpImage)
+	warpImage = ImageTransform.cylindrical_warp(warpImage, i)
 	warpImage = ImageTransform.crop_image(warpImage)
 
-	if split and i > 4:
+	if split and i > 1:
 		print 'split', i
 		leftSourceImage = sourceImage.copy()[:,:sourceImage.shape[1]/2]
 		rightSourceImage = sourceImage.copy()[:,sourceImage.shape[1]/2:]
@@ -303,14 +205,15 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 		cv2.destroyAllWindows()
 		break
 	(result, vis) = matched_result
-	if split and i > 4:
+	if split and i > 1:
 		height = result.shape[0] if result.shape[0] > leftSourceImage.shape[0] else leftSourceImage.shape[0]
 		width = result.shape[1] + leftSourceImage.shape[1]
 		merge = np.zeros((height,width,3)).astype("uint8")
 		merge[:leftSourceImage.shape[0], :leftSourceImage.shape[1]] = leftSourceImage
 		merge[:result.shape[0], leftSourceImage.shape[1]:] = result
 		result = merge
-
+	# if i % 4 == 0:
+	# 	result = ImageTransform.straighten(result, i)
 	display_image = result
 	if result.shape[1] > 1000:
 		display_image = imutils.resize(display_image, width=1000)
@@ -321,3 +224,4 @@ for i, imagePath in enumerate(sorted(list(paths.list_images('images/{}'.format(i
 	cv2.waitKey(0)
 	cv2.destroyAllWindows()
 	sourceImage = result
+	cv2.imwrite('cave.png', sourceImage)
